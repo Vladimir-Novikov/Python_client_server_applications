@@ -21,6 +21,11 @@ b_type = [b"class", b"function", b"method"]
 for i in b_type:
     print(f"ТИП: {type(i)} Содержимое: {i} Длина: {len(i)}")
 
+# решение с помощью приведения типов
+b_type = ["class", "function", "method"]
+for i in b_type:
+    print(bytes(i, encoding="utf-8"), len(bytes(i, encoding="utf-8")), type(bytes(i, encoding="utf-8")))
+
 # task_3
 
 # Определить, какие из слов «attribute», «класс», «функция», «type» невозможно записать в
