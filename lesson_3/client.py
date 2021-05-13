@@ -20,11 +20,8 @@ def myerror(message):
 
 
 parser = createParser()
+print(parser)
 namespace = parser.parse_args(sys.argv[1:])
-
-
-s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
-s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
 
 
 """insert message here"""
@@ -36,10 +33,21 @@ msg = {
 }
 
 
-s.send(pickle.dumps(msg))
-data = s.recv(1024)
-print("Сообщение от сервера: ", pickle.loads(data), ", длиной ", len(data), "байт")
-s.close()
+def message_processing(data):
+    if len(data) == 0:
+        return "Empty"
+    if "message" in data:
+        return data["message"]
+    return data
+
+
+if __name__ == "__main__":
+    s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
+    s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
+    s.send(pickle.dumps(msg))
+    data = s.recv(1024)
+    print("Сообщение от сервера: ", message_processing(pickle.loads(data)), ", длиной ", len(data), "байт")
+    s.close()
 
 
 """
