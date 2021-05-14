@@ -171,20 +171,18 @@ def create(**kwargs):
     return {"response": 200, "time": time.time(), "alert": f"Чат {chat_name} успешно создан"}
 
 
-s = socket(AF_INET, SOCK_STREAM)  # Создает сокет TCP
-s.bind((namespace.addr, int(namespace.port)))  # Присваивает порт 8888
-s.listen(5)  # Переходит в режим ожидания запросов Одновременно обслуживает не более 5 запросов.
+if __name__ == "__main__":
+    s = socket(AF_INET, SOCK_STREAM)  # Создает сокет TCP
+    s.bind((namespace.addr, int(namespace.port)))  # Присваивает порт 8888
+    s.listen(5)  # Переходит в режим ожидания запросов Одновременно обслуживает не более 5 запросов.
+    while True:
 
-
-while True:
-
-    client, addr = s.accept()
-    message = client.recv(1024)
-    print("Сообщение: ", pickle.loads(message), ", было отправлено клиентом: ", addr)
-    response = checking_data(message)
-    client.send(pickle.dumps(response))
-    client.close()
-
+        client, addr = s.accept()
+        message = client.recv(1024)
+        print("Сообщение: ", pickle.loads(message), ", было отправлено клиентом: ", addr)
+        response = checking_data(message)
+        client.send(pickle.dumps(response))
+        client.close()
 
 """
 команды quit, presence, authenticate принимают словарь такого вида
