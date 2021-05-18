@@ -28,6 +28,16 @@ def myerror(message):
     # print(f"Применен недопустимый аргумент {message}")
 
 
+msg = {
+    "action": "msg",
+    "time": time.time(),
+    "to": "C0deMaver1ck",
+    "from": "user_1",
+    "encoding": "ascii",
+    "message": "message",
+}
+
+
 def message_processing(data):
     if len(data) == 0:
         return "Empty"
@@ -40,58 +50,18 @@ def message_processing(data):
     return data
 
 
-def command_processing():
-    user_name = ""  # имя пользователя
-    while len(user_name) < 2:
-        user_name = input("Введите ваше имя (минимум 2 знака): ").strip()
-        msg = {
-            "action": "authenticate",
-            "time": time.time(),
-            "user": {"account_name": f"{user_name}", "password": "123"},
-        }
+if __name__ == "__main__":
+    parser = createParser()
+    namespace = parser.parse_args(sys.argv[1:])
+    try:
         s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
         s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
         s.send(pickle.dumps(msg))
         data = s.recv(1024)
         print("Сообщение от сервера: ", message_processing(pickle.loads(data)), ", длиной ", len(data), "байт")
-    while True:
-        command = input("Введите q для выхода, s для отправки сообщения, n для регистрации \n--> ")
-        try:
-            # if command == "n":
-
-            if command == "s":
-                to = input("Кому: ")
-                text = input("Сообщение: ")
-                msg = {
-                    "action": "msg",
-                    "time": time.time(),
-                    "to": f"{to}",
-                    "from": f"{user_name}",
-                    "encoding": "ascii",
-                    "message": f"{text}",
-                }
-                s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
-                s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
-                s.send(pickle.dumps(msg))
-                data = s.recv(1024)
-                print("Сообщение от сервера: ", message_processing(pickle.loads(data)), ", длиной ", len(data), "байт")
-
-            if command == "q":
-                logger.info("exit")
-                try:
-                    s.close()
-                except NameError as er:  # сокет не создавался
-                    logger.error("Сокет не создавался, клиент вышел")
-                break
-
-        except ConnectionRefusedError as er:  # сервер отклонил подключение
-            logger.error(er)
-
-
-if __name__ == "__main__":
-    parser = createParser()
-    namespace = parser.parse_args(sys.argv[1:])
-    command_processing()
+        s.close()
+    except ConnectionRefusedError as er:
+        logger.error(er)
 
 
 """

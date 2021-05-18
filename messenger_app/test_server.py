@@ -3,6 +3,7 @@ from server import checking_data, authenticate, presence, msg, quit_s, join, lea
 import time
 import pytest
 import server  # импортируем переменные, т.к. во время выполнения тестов функции операются на эти данные
+import argparse
 
 """
 Функции сервера тестируются с помощью pytest
@@ -122,6 +123,12 @@ data_quit = {
     "type": "status",
     "user": {"account_name": "user_1", "status": "I am here!"},
 }
+
+
+def test_create_parser():
+    parser = argparse.ArgumentParser()
+    assert type(createParser()) == type(parser)
+
 
 """ 
 серия тестов на аутентификацию и присутствие пользователя
@@ -349,10 +356,7 @@ def test_checking_data_13():  #
         "response": 200,
         "time": time.time(),
         "alert": "Сообщение от user_1 успешно доставлено user_3",
-
         "msg": "message",
-
-
     }
 
 
@@ -418,9 +422,7 @@ def test_checking_data_20():  #
     assert checking_data(pickle.dumps(data_quit)) == {
         "response": 200,
         "time": time.time(),
-
         "alert": "Пользователь user_1 успешно отключен от сервера",
-
     }
 
 

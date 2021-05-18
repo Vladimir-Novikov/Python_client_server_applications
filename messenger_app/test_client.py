@@ -1,5 +1,7 @@
 import unittest
-from client import message_processing
+from client import message_processing, createParser
+import argparse
+
 
 """
 Тест клиентской функции с помощью unittest
@@ -7,32 +9,46 @@ from client import message_processing
 
 
 class TestClient(unittest.TestCase):
-    def test_response(self):
+    def test_create_parser(self):
+        parser = argparse.ArgumentParser()
+        self.assertEqual(type(createParser()), type(parser))
+
+    def test_message_processing_response_400(self):
         self.assertEqual(
             message_processing(
                 {
                     "response": 409,
-                    "time": 1620822218.6663346,
                     "alert": "уже имеется подключение с указанным логином user_1 ",
                 }
             ),
             {
                 "response": 409,
-                "time": 1620822218.6663346,
                 "alert": "уже имеется подключение с указанным логином user_1 ",
             },
         )
 
-    def test_message(self):
+    def test_message_processing_message(self):
         self.assertEqual(
-            message_processing({"message": "Hi"}),
+            message_processing({"msg": "Hi"}),
             "Hi",
         )
 
-    def test_message_empty(self):
+    def test_message_processing_empty(self):
         self.assertEqual(
             message_processing({}),
             "Empty",
+        )
+
+    def test_message_processing_response_200(self):
+        self.assertEqual(
+            message_processing(
+                {
+                    "response": 200,
+                }
+            ),
+            {
+                "response": 200,
+            },
         )
 
 
