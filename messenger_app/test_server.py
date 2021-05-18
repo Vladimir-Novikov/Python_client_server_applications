@@ -349,6 +349,10 @@ def test_checking_data_13():  #
         "response": 200,
         "time": time.time(),
         "alert": "Сообщение от user_1 успешно доставлено user_3",
+
+        "msg": "message",
+
+
     }
 
 
@@ -414,7 +418,9 @@ def test_checking_data_20():  #
     assert checking_data(pickle.dumps(data_quit)) == {
         "response": 200,
         "time": time.time(),
-        "alert": "Пользователь user_1 оключен от сервера",
+
+        "alert": "Пользователь user_1 успешно отключен от сервера",
+
     }
 
 
