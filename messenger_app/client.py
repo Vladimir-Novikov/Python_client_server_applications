@@ -1,20 +1,21 @@
 from socket import socket, AF_INET, SOCK_STREAM
 import time
 import sys
-
 import argparse
 import pickle
 import logging
 
-from logs import _client_log_config
+# from logs import _client_log_config
+from logs._client_log_decorator import log
+
+"""Раскомментировать этот код в случае применения _client_log_config (без декораторов)"""
+# logger = logging.getLogger("app.client")
+# logger.info("app start")
 
 
-logger = logging.getLogger("app.client")
-logger.info("app start")
-
-
+@log()
 def createParser():
-    logger.info("parser start")
+    # logger.info("parser start")
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--port", default="7777")
     parser.add_argument("-a", "--addr", default="localhost")
@@ -23,9 +24,10 @@ def createParser():
     return parser
 
 
+@log("error")
 def myerror(message):
-    logger.error(f"parser wrong argument: {message}")
     # print(f"Применен недопустимый аргумент {message}")
+    return f"Применен недопустимый аргумент {message}"
 
 
 msg = {
@@ -38,21 +40,21 @@ msg = {
 }
 
 
+@log()
 def message_processing(data):
     if len(data) == 0:
         return "Empty"
     if "msg" in data:
         return data["msg"]
     if data["response"] > 200:
-        logger.warning(data)
+        # logger.warning(data)
         return data
-    logger.info(data)
+    # logger.info(data)
     return data
 
 
-if __name__ == "__main__":
-    parser = createParser()
-    namespace = parser.parse_args(sys.argv[1:])
+@log("error")
+def create_socket():
     try:
         s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
         s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
@@ -61,7 +63,14 @@ if __name__ == "__main__":
         print("Сообщение от сервера: ", message_processing(pickle.loads(data)), ", длиной ", len(data), "байт")
         s.close()
     except ConnectionRefusedError as er:
-        logger.error(er)
+        return er
+        # logger.error(er)
+
+
+if __name__ == "__main__":
+    parser = createParser()
+    namespace = parser.parse_args(sys.argv[1:])
+    create_socket()
 
 
 """
