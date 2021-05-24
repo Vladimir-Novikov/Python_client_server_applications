@@ -2,7 +2,7 @@ import pickle
 from socket import socket, AF_INET, SOCK_STREAM
 import time
 import sys
-
+from select import select
 import argparse
 import logging
 from logs._server_log_decorator import log
@@ -83,7 +83,7 @@ def checking_data(message):
     return processing_the_action(**data)  # выполняем нужную функцию
 
 
-authorized_users = []
+authorized_users = ["all"]
 chat_rooms = {}
 
 
@@ -243,22 +243,81 @@ def create(**kwargs):
     return {"response": 200, "time": time.time(), "alert": f"Чат {chat_name} успешно создан"}
 
 
+@log(level="info", return_values=1)
+def read_requests(r_clients, all_clients):
+    """ Чтение запросов из списка клиентов"""
+    responses = {}  # Словарь ответов сервера вида {сокет: запрос}
+    for sock in r_clients:
+        try:
+            data = sock.recv(1024)
+            responses[sock] = data
+        except:
+            print("Клиент {} {} отключился".format(sock.fileno(), sock.getpeername()))
+            all_clients.remove(sock)
+        return responses
+
+
+@log(level="info", return_values=1)
+def write_responses(requests, w_clients, all_clients):
+    for sock in w_clients:
+        if sock in requests:
+            try:
+                # Подготовить и отправить ответ сервера
+                resp = requests[sock]
+                response = checking_data(resp)
+                if "msg" in response:
+                    for s_client in w_clients:
+                        try:
+                            s_client.send(pickle.dumps(response))
+                        except:
+                            pass
+
+                sock.send(pickle.dumps(response))
+            except:  # Сокет недоступен, клиент отключился
+                print("Клиент {} {} отключился".format(sock.fileno(), sock.getpeername()))
+                sock.close()
+                all_clients.remove(sock)
+
+
+@log(level="info", return_values=1)
+def main():
+    parser = createParser()
+    namespace = parser.parse_args(sys.argv[1:])
+    clients = []
+    with socket(AF_INET, SOCK_STREAM) as s:  # Создает сокет TCP
+        s.bind((namespace.addr, int(namespace.port)))  # Присваивает порт
+        s.listen(5)  # Переходит в режим ожидания запросов Одновременно обслуживает не более 5 запросов.
+        s.settimeout(0.2)
+        while True:
+            try:
+                conn, addr = s.accept()  # Проверка подключений
+            except OSError as e:
+                pass  # timeout вышел
+            else:
+                print("Получен запрос на соединение от %s" % str(addr))
+                clients.append(conn)
+            finally:
+                # Проверить наличие событий ввода-вывода
+                wait = 10
+                r = []
+                w = []
+                try:
+                    r, w, e = select(clients, clients, [], wait)
+                except:
+                    pass  # Ничего не делать, если какой-то клиент отключился
+
+                requests = read_requests(r, clients)  # Сохраним запросы клиентов
+                if requests:
+                    write_responses(requests, w, clients)  # Выполним отправку ответов клиентам
+
+
 if __name__ == "__main__":
     if not DEBUG:
-        parser = createParser()
-        namespace = parser.parse_args(sys.argv[1:])
-        s = socket(AF_INET, SOCK_STREAM)  # Создает сокет TCP
-        s.bind((namespace.addr, int(namespace.port)))  # Присваивает порт 8888
-        s.listen(5)  # Переходит в режим ожидания запросов Одновременно обслуживает не более 5 запросов.
+        try:
+            main()
+        except Exception as er:
+            pass
 
-        while True:
-            client, addr = s.accept()
-            message = client.recv(1024)
-            # logger.info(f"Сообщение: {pickle.loads(message)}, было отправлено клиентом:  {addr}")
-            # print("Сообщение: ", pickle.loads(message), ", было отправлено клиентом: ", addr)
-            response = checking_data(message)
-            client.send(pickle.dumps(response))
-            client.close()
     if DEBUG:
         authenticate()
         quit_s()

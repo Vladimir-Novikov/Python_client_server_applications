@@ -1,5 +1,5 @@
 import unittest
-from client import message_processing, createParser
+from client import message_processing, createParser, user_registration
 import argparse
 
 
@@ -49,6 +49,12 @@ class TestClient(unittest.TestCase):
             {
                 "response": 200,
             },
+        )
+
+    def test_user_registration(self):
+        self.assertEqual(
+            user_registration(testing=True)["user"]["account_name"],
+            "Test_name",
         )
 
 

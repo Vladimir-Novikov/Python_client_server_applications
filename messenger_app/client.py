@@ -4,6 +4,7 @@ import sys
 import argparse
 import pickle
 import logging
+from select import select
 
 # from logs import _client_log_config
 from logs._client_log_decorator import log
@@ -30,18 +31,9 @@ def myerror(message):
     return f"Применен недопустимый аргумент {message}"
 
 
-msg = {
-    "action": "msg",
-    "time": time.time(),
-    "to": "C0deMaver1ck",
-    "from": "user_1",
-    "encoding": "ascii",
-    "message": "message",
-}
-
-
 @log()
 def message_processing(data):
+    # return data
     if len(data) == 0:
         return "Empty"
     if "msg" in data:
@@ -53,24 +45,58 @@ def message_processing(data):
     return data
 
 
-@log("error")
-def create_socket():
-    try:
-        s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
-        s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
+user_name = ""
+
+
+@log()
+def user_registration(testing=False):
+    global user_name
+    if testing:
+        user_name = "Test_name"
+    else:
+        while len(user_name) < 2:
+            user_name = input("Введите ваше имя: ").strip()
+    msg = {
+        "action": "authenticate",
+        "time": time.time(),
+        "user": {"account_name": user_name, "password": "123"},
+    }
+    return msg
+
+
+@log()
+def main():
+    parser = createParser()
+    namespace = parser.parse_args(sys.argv[1:])
+    s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
+    s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
+    s.send(pickle.dumps(user_registration()))
+    data = s.recv(1024)
+    print("Сообщение от сервера: ", message_processing(pickle.loads(data)), ", длиной ", len(data), "байт")
+    s.settimeout(0.2)
+    while True:
+        msg = input("Ваше сообщение: ")
+        if msg == "exit":
+            s.close()
+            break
+        msg = {
+            "action": "msg",
+            "time": time.time(),
+            "to": "all",
+            "from": user_name,
+            "encoding": "ascii",
+            "message": msg,
+        }
         s.send(pickle.dumps(msg))
         data = s.recv(1024)
-        print("Сообщение от сервера: ", message_processing(pickle.loads(data)), ", длиной ", len(data), "байт")
-        s.close()
-    except ConnectionRefusedError as er:
-        return er
-        # logger.error(er)
+        print("Сообщение из чата", message_processing(pickle.loads(data)))
 
 
 if __name__ == "__main__":
-    parser = createParser()
-    namespace = parser.parse_args(sys.argv[1:])
-    create_socket()
+    try:
+        main()
+    except Exception as er:
+        pass
 
 
 """
