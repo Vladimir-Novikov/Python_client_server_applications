@@ -4,6 +4,9 @@ import sys
 import argparse
 import pickle
 import logging
+from threading import Thread
+import time
+
 
 # from logs import _client_log_config
 from logs._client_log_decorator import log
@@ -30,51 +33,161 @@ def myerror(message):
     return f"Применен недопустимый аргумент {message}"
 
 
-msg = {
-    "action": "msg",
-    "time": time.time(),
-    "to": "C0deMaver1ck",
-    "from": "user_1",
-    "encoding": "ascii",
-    "message": "message",
-}
+@log()
+def receiving_messages(sock):
+    while True:
+        raw_data = sock.recv(1024)
+        data = pickle.loads(raw_data)
+        if "chat" in data:
+            print(data["from"], " :: ", data["message"], "\n")
+        # if "quit" in data:
+        #     return False
+        elif "msg" in data:
+            print(data["to"], "-->", data["msg"], "\n")  # to тк в msg server они поменяны местами
+        elif data["response"] > 200:
+            print(data["alert"], "\n")
+        else:
+            pass
 
 
 @log()
-def message_processing(data):
-    if len(data) == 0:
-        return "Empty"
-    if "msg" in data:
-        return data["msg"]
-    if data["response"] > 200:
-        # logger.warning(data)
-        return data
-    # logger.info(data)
-    return data
+def msg_user_to_user(testing=False):
+    if testing:
+        to = "User_1"
+        message = "Hi"
+        user_name = "Me"
+    else:
+        to = input("Кому: ")
+        message = input("Сообщение: ")
+    msg = {
+        "action": "msg",
+        "time": time.time(),
+        "to": to,
+        "from_user": user_name,
+        "encoding": "ascii",
+        "message": message,
+    }
+    return msg
 
 
-@log("error")
-def create_socket():
-    try:
-        s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
-        s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
-        s.send(pickle.dumps(msg))
-        data = s.recv(1024)
-        print("Сообщение от сервера: ", message_processing(pickle.loads(data)), ", длиной ", len(data), "байт")
+@log()
+def create_quick_chat():
+    chat_name = input("Укажите название чата: \n")
+    msg = {
+        "action": "quick_chat",
+        "time": time.time(),
+        "from": user_name,
+        "chat_name": chat_name,
+    }
+    return msg
+
+
+@log()
+def msg_to_chat(chat_name, sock):
+    while True:
+        message = input("")
+        if message == "exit":
+            msg = {
+                "action": "leave",
+                "time": time.time(),
+                "from_user": user_name,
+                "chat_name": chat_name,
+            }
+            #  пользователя нужно убрать из чата если он вышел
+            sock.send(pickle.dumps(msg))
+            return
+        msg = {
+            "action": "msg",
+            "time": time.time(),
+            "to": "#" + chat_name,
+            "from_user": user_name,
+            "encoding": "ascii",
+            "message": message,
+        }
+
+        sock.send(pickle.dumps(msg))
+
+
+@log()
+def user_action(sock):
+    while True:
+        while True:
+            time.sleep(0.5)  # задерживаем вывод сообщения, для корректного отображения в консоли (в нужном порядке)
+            action = input("Выберите действие: 1 - сообщение пользователю, 2 - общение в чате, exit для выхода: \n")
+            if action == "exit":
+                print("Клиент закрыт")
+                msg = {
+                    "action": "quit",
+                    "time": time.time(),
+                    "user": {"account_name": user_name},
+                }
+                sock.send(pickle.dumps(msg))
+                return False
+            if action in ["1", "2"]:
+                break
+        if action == "1":
+            sock.send(pickle.dumps(msg_user_to_user()))
+
+        if action == "2":
+            chat = create_quick_chat()
+            chat_name = chat["chat_name"]
+            sock.send(pickle.dumps(chat))
+            print(f"Вы в чате {chat_name}, exit для выхода из чата \n")
+            msg_to_chat(chat_name, sock)
+
+
+@log()
+def main():
+    parser = createParser()
+    namespace = parser.parse_args(sys.argv[1:])
+    s = socket(AF_INET, SOCK_STREAM)  # Создать сокет TCP
+    s.connect((namespace.addr, int(namespace.port)))  # Соединиться с сервером
+    if not user_registration(s):  # передаем в функцию сокет, для отправки регистрационных данных
+        print("Клиент закрыт")
         s.close()
-    except ConnectionRefusedError as er:
-        return er
-        # logger.error(er)
+    else:
+        listen = Thread(target=receiving_messages, args=(s,))
+        listen.start()
+        action = Thread(target=user_action, args=(s,))
+        action.start()
+
+
+def user_registration(sock, testing=False):
+    global user_name
+    if testing:
+        user_name = "Test_name"
+    else:
+        while True:
+            user_name = ""  # сбрасываем имя
+            while len(user_name) < 2:
+                user_name = input("Введите ваше имя: (минимум 2 знака или exit для выхода): ").strip()
+            if user_name == "exit":  # если exit, то return и в main закрываем сокет
+                return False
+            msg = {
+                "action": "authenticate",
+                "time": time.time(),
+                "user": {"account_name": user_name, "password": ""},
+            }
+            sock.send(pickle.dumps(msg))
+            data = sock.recv(1024)
+            print(pickle.loads(data)["alert"])
+            if pickle.loads(data)["response"] > 200:
+                continue
+            else:
+                break
+
+    return True
 
 
 if __name__ == "__main__":
-    parser = createParser()
-    namespace = parser.parse_args(sys.argv[1:])
-    create_socket()
+    try:
+        main()
+    except Exception as er:
+        pass
 
 
 """
-образцы сообщений для тестирования
+образцы сообщений
 msg = {
     "action": "authenticate",
     "time": time.time(),
