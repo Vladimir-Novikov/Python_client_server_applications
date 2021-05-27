@@ -1,4 +1,5 @@
 import pickle
+from sys import argv
 from server import checking_data, authenticate, presence, msg, quit_s, join, leave, create, createParser
 import time
 import pytest
