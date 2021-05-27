@@ -32,7 +32,9 @@ def log(level="info", return_values=1):
                     logger.info(f"Функция {name} вызвана с аргументами {args},{kwargs}, результат {result}")
 
             if main_function != "<module>":
-                if level == "info":
+                if level == "info" and result is None:
+                    logger.info(f"Функция {name} вызвана из функции {main_function} с аргументами {args},{kwargs}")
+                if level == "info" and result is not None:
                     logger.info(
                         f"Функция {name} вызвана из функции {main_function} с аргументами {args},{kwargs}, результат {result}"
                     )
