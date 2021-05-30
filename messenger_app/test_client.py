@@ -1,6 +1,7 @@
 import unittest
-from client import message_processing, createParser, user_registration
+from client import msg_user_to_user, createParser
 import argparse
+import time
 
 
 """
@@ -13,48 +14,17 @@ class TestClient(unittest.TestCase):
         parser = argparse.ArgumentParser()
         self.assertEqual(type(createParser()), type(parser))
 
-    def test_message_processing_response_400(self):
+    def test_msg_user_to_user(self):
         self.assertEqual(
-            message_processing(
-                {
-                    "response": 409,
-                    "alert": "уже имеется подключение с указанным логином user_1 ",
-                }
-            ),
+            msg_user_to_user(testing=True),
             {
-                "response": 409,
-                "alert": "уже имеется подключение с указанным логином user_1 ",
+                "action": "msg",
+                "time": time.time(),
+                "to": "User_1",
+                "from_user": "Me",
+                "encoding": "ascii",
+                "message": "Hi",
             },
-        )
-
-    def test_message_processing_message(self):
-        self.assertEqual(
-            message_processing({"msg": "Hi"}),
-            "Hi",
-        )
-
-    def test_message_processing_empty(self):
-        self.assertEqual(
-            message_processing({}),
-            "Empty",
-        )
-
-    def test_message_processing_response_200(self):
-        self.assertEqual(
-            message_processing(
-                {
-                    "response": 200,
-                }
-            ),
-            {
-                "response": 200,
-            },
-        )
-
-    def test_user_registration(self):
-        self.assertEqual(
-            user_registration(testing=True)["user"]["account_name"],
-            "Test_name",
         )
 
 

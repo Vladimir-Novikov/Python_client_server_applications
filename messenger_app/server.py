@@ -54,42 +54,79 @@ def myerror(message):
     return f"Применен недопустимый аргумент {message}"
 
 
-@log(level="info", return_values=2)
-def checking_data(message):
-    if len(message) > 640:  # проверка длины пакета
-        # logger.error("Длина пакета больше 640")
-        return {
-            "response": 400,
-            "time": time.time(),
-            "error": "Длина объекта больше 640 символов",
-        }  # неправильный запрос/JSON-объект;
+def checking_data(r_clients, all_clients):
 
-    dict_of_commands = {
-        "authenticate": authenticate,
-        "presence": presence,
-        "msg": msg,
-        "quit": quit_s,  # т.к. в python есть ф-ция quit - определил для ф-ции другое имя
-        "join": join,
-        "leave": leave,
-        "create": create,
-    }
-    data = pickle.loads(message)
-    action = data["action"]
-    if action not in dict_of_commands:
-        # logger.error("wrong command in message")
-        return {"response": 404, "time": time.time(), "error": f"Неизвестная команда {action}"}
-    processing_the_action = dict_of_commands[action]  # находим в словаре обработчик и присваиваем его переменной
-    # logger.info(f"processing {action}")
-    return processing_the_action(**data)  # выполняем нужную функцию
+    for sock in r_clients:
+        try:
+            message = sock.recv(1024)
+        except:
+            print("Клиент {} {} отключился".format(sock.fileno(), sock.getpeername()))
+            all_clients.remove(sock)
+        # если клиент набрал exit, то False, и дальнейшие условия не проверяем (без этого сервер вылетал)
+        if len(message) == 0:
+            return False
+
+        if len(message) > 640:  # проверка длины пакета
+            # logger.error("Длина пакета больше 640")
+            return {
+                "response": 400,
+                "time": time.time(),
+                "error": "Длина объекта больше 640 символов",
+            }
+
+        dict_of_commands = {
+            "authenticate": authenticate,
+            "presence": presence,
+            "msg": msg,
+            "quit": quit_s,  # т.к. в python есть ф-ция quit - определил для ф-ции другое имя
+            "join": join,
+            "leave": leave,
+            "create": create,
+            "quick_chat": quick_chat,
+            # "test": test,
+        }
+        data = pickle.loads(message)
+        action = data["action"]
+        if action not in dict_of_commands:
+            # logger.error("wrong command in message")
+            return {"response": 404, "time": time.time(), "error": f"Неизвестная команда {action}"}
+        if action == "authenticate":
+            return authenticate(sock, **data)
+        # if action == "test":
+        #     return test(sock, **data)
+        processing_the_action = dict_of_commands[action]  # находим в словаре обработчик и присваиваем его переменной
+        # logger.info(f"processing {action}")
+
+        return processing_the_action(**data)  # выполняем нужную функцию
 
 
-authorized_users = ["all"]
+# возвращаем сокет
+
+# def test(sock, **kwargs):
+#     from_user = kwargs["from"]
+#     sock_1 = authorized_users[kwargs["from"]]
+#     sock_2 = authorized_users[kwargs["con_to_user"]]
+#     return {
+#         "test": True,
+#         "response": 200,
+#         "from_user_sock": "<socket.socket fd=400, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 7777), raddr=('127.0.0.1', 64433)>",
+#         "to_user_sock": "sock_2",
+#         "alert": "Сообщение от vova успешно доставлено vova",
+#         "to": "vova",
+#         "from": "vova",
+#         "msg": "hi",
+#     }
+
+# return {"test": True, "from_user_sock": authorized_users[from_user], "to_user_sock": authorized_users[con_to_user]}
+
+
+authorized_users = {}
 chat_rooms = {}
 
 
 @log(level="info", return_values=2)
 @mockable
-def authenticate(**kwargs):  # пароль не запрашивается на данном этапе разработки
+def authenticate(sock, **kwargs):  # пароль не запрашивается на данном этапе разработки
     user_name = kwargs["user"]["account_name"]
     if user_name in authorized_users:
         # logger.warning(f"уже имеется подключение с указанным логином {user_name}")
@@ -97,10 +134,17 @@ def authenticate(**kwargs):  # пароль не запрашивается на
             "response": 409,
             "time": time.time(),
             "alert": f"уже имеется подключение с указанным логином {user_name} ",
+            "sock": sock,
         }
-    authorized_users.append(user_name)
+    authorized_users[user_name] = sock
+
     # logger.info(f"Пользователь {user_name} успешно авторизован")
-    return {"response": 200, "time": time.time(), "alert": f"Пользователь {user_name} успешно авторизован"}
+    return {
+        "response": 200,
+        "time": time.time(),
+        "alert": f"Пользователь {user_name} успешно авторизован",
+        "from": user_name,
+    }
 
 
 @log(level="info", return_values=2)
@@ -120,12 +164,17 @@ def presence(**kwargs):
 
 @log(level="info", return_values=2)
 def msg(**kwargs):
-    from_user = kwargs["from"]
+    from_user = kwargs["from_user"]
     to_user = kwargs["to"]
     message = kwargs["message"]
     if from_user not in authorized_users:
         # logger.error(f"response 401 Пользователь {from_user} не авторизован")
-        return {"response": 401, "time": time.time(), "alert": f"Пользователь {from_user} не авторизован"}
+        return {
+            "response": 401,
+            "time": time.time(),
+            "alert": f"Пользователь {from_user} не авторизован",
+            "from": from_user,
+        }
 
     if to_user[0] == "#":
         chat = to_user[1:]
@@ -136,19 +185,27 @@ def msg(**kwargs):
         return {
             "response": 200,
             "time": time.time(),
-            "alert": f"Сообщение от {from_user} успешно доставлено в чат {chat}",
+            # "alert": f"Сообщение от {from_user} успешно доставлено в чат {chat}",
+            "from": from_user,
+            "message": message,  # message вместо msg, чтобы не было ошибок при обработке
+            "chat": chat,
         }
     if to_user not in authorized_users:
         # logger.error(f"response 404 Пользователь {to_user} на сервере не зарегистрирован")
-        return {"response": 404, "time": time.time(), "alert": f"Пользователь {to_user} на сервере не зарегистрирован"}
+        return {
+            "response": 404,
+            "time": time.time(),
+            "alert": f"Пользователь {to_user} на сервере не зарегистрирован",
+            "from": from_user,
+        }
 
-    # return {"response": 200, "time": time.time(), "alert": f"Сообщение от {from_user} успешно доставлено {to_user}"}
-    # logger.info(f"Сообщение от {from_user} успешно доставлено {to_user}")
     return {
         "response": 200,
         "time": time.time(),
         "alert": f"Сообщение от {from_user} успешно доставлено {to_user}",
-        "msg": f"{message}",
+        "to": from_user,  # from to поменяны местами, тк сообщение нужно доставить не автору, а адресату
+        "from": to_user,
+        "msg": message,
     }
 
 
@@ -157,11 +214,47 @@ def msg(**kwargs):
 def quit_s(**kwargs):
     user_name = kwargs["user"]["account_name"]
     if user_name in authorized_users:
-        authorized_users.remove(user_name)
-        # logger.info(f"Пользователь {user_name} успешно отключен от сервера")
-        return {"response": 200, "time": time.time(), "alert": f"Пользователь {user_name} успешно отключен от сервера"}
+
+        # т.к. пользователя из словаря мы удалили, получим его сокет для отправки сообщения
+        sock = authorized_users.pop(user_name, None)
+
+        return {
+            "response": 200,
+            "time": time.time(),
+            # "alert": f"Пользователь {user_name} успешно отключен от сервера",
+            "sock": sock,
+            "quit": True,
+        }  # передаем ключ quit для завершения потока
     # logger.error(f"response 404 Пользователь {user_name} на сервере не зарегистрирован")
-    return {"response": 404, "time": time.time(), "error": f"Пользователь {user_name} на сервере не зарегистрирован"}
+    # return {"response": 404, "time": time.time(), "error": f"Пользователь {user_name} на сервере не зарегистрирован", "from": from_user,}
+
+
+def quick_chat(**kwargs):
+    chat_name = kwargs["chat_name"]
+    user = kwargs["from"]
+    if chat_name in chat_rooms:
+        if user not in chat_rooms[chat_name]:
+            chat_rooms[chat_name].append(user)
+            return {
+                "response": 200,
+                "time": time.time(),
+                "alert": f"Пользователь {user} добавлен в {chat_name} ",
+                "from": user,
+            }
+        return {
+            "response": 200,
+            "time": time.time(),
+            "alert": f"Пользователь {user} уже в чате {chat_name} ",
+            "from": user,
+        }
+
+    chat_rooms[chat_name] = [user]
+    return {
+        "response": 200,
+        "time": time.time(),
+        "alert": f"Создан чат {chat_name} с пользователем {user}",
+        "from": user,
+    }
 
 
 @log(level="info", return_values=2)
@@ -197,18 +290,24 @@ def join(**kwargs):
 @log(level="info", return_values=2)
 def leave(**kwargs):
     chat_name = kwargs["chat_name"]
-    user = kwargs["from"]
+    user = kwargs["from_user"]
     if user not in authorized_users:
         # logger.error(f"response 404 пользователь {user} отсутствует на сервере")
         return {"response": 404, "time": time.time(), "error": f"пользователь {user} отсутствует на сервере"}
     if chat_name in chat_rooms:
+
         if user in chat_rooms[chat_name]:
+
             chat_rooms[chat_name].remove(user)
+
             # logger.info(f"Пользователь {user} удален из {chat_name}")
             return {
                 "response": 200,
                 "time": time.time(),
-                "alert": f"Пользователь {user} удален из {chat_name} ",
+                "alert": f"Пользователь {user} вышел из чата",
+                "message": f"Пользователь {user} вышел из чата",  # эта строка для показа в чате всем пользователям
+                "from": user,
+                "chat": chat_name,
             }
         # logger.error(f"response 409 Пользователя {user} нет в чате {chat_name}")
         return {
@@ -243,43 +342,31 @@ def create(**kwargs):
     return {"response": 200, "time": time.time(), "alert": f"Чат {chat_name} успешно создан"}
 
 
-@log(level="info", return_values=1)
-def read_requests(r_clients, all_clients):
-    """ Чтение запросов из списка клиентов"""
-    responses = {}  # Словарь ответов сервера вида {сокет: запрос}
-    for sock in r_clients:
-        try:
-            data = sock.recv(1024)
-            responses[sock] = data
-        except:
-            print("Клиент {} {} отключился".format(sock.fileno(), sock.getpeername()))
-            all_clients.remove(sock)
-        return responses
+def write_responses(requests):
+    # if "test" in requests:
+    #     print(requests)
+    #     sock = authorized_users[requests["from"]]
+    #     print(sock)
+    #     sock.send(pickle.dumps(requests))
+
+    if "sock" in requests:  # если имя пользователя уже занято или он отключился, то ответ возвращаем по сокету.
+        sock = requests.pop("sock", None)
+        sock.send(pickle.dumps(requests))
+        return
+
+    if "chat" in requests:  # сообщение в чат
+        author = authorized_users[requests["from"]]  # сокет автора сообщения (отсылаем всем, кроме него)
+        list_of_users = chat_rooms[requests["chat"]]  # получаем список участников чата
+        for user_name in list_of_users:  # проходимся списку пользователей, для получения сокета и последующей отправки
+            sock = authorized_users[user_name]
+            if sock != author:
+                sock.send(pickle.dumps(requests))
+        return
+
+    sock = authorized_users[requests["from"]]  # ответы сервера возвращаем тому, кто отправил запрос
+    sock.send(pickle.dumps(requests))
 
 
-@log(level="info", return_values=1)
-def write_responses(requests, w_clients, all_clients):
-    for sock in w_clients:
-        if sock in requests:
-            try:
-                # Подготовить и отправить ответ сервера
-                resp = requests[sock]
-                response = checking_data(resp)
-                if "msg" in response:
-                    for s_client in w_clients:
-                        try:
-                            s_client.send(pickle.dumps(response))
-                        except:
-                            pass
-
-                sock.send(pickle.dumps(response))
-            except:  # Сокет недоступен, клиент отключился
-                print("Клиент {} {} отключился".format(sock.fileno(), sock.getpeername()))
-                sock.close()
-                all_clients.remove(sock)
-
-
-@log(level="info", return_values=1)
 def main():
     parser = createParser()
     namespace = parser.parse_args(sys.argv[1:])
@@ -300,15 +387,17 @@ def main():
                 # Проверить наличие событий ввода-вывода
                 wait = 10
                 r = []
-                w = []
+                # w = []
                 try:
-                    r, w, e = select(clients, clients, [], wait)
+                    r, w, e = select(clients, [], [], wait)
+
                 except:
                     pass  # Ничего не делать, если какой-то клиент отключился
 
-                requests = read_requests(r, clients)  # Сохраним запросы клиентов
+                requests = checking_data(r, clients)  # Сохраним запросы клиентов
+
                 if requests:
-                    write_responses(requests, w, clients)  # Выполним отправку ответов клиентам
+                    write_responses(requests)
 
 
 if __name__ == "__main__":
@@ -322,30 +411,3 @@ if __name__ == "__main__":
         authenticate()
         quit_s()
         presence()
-
-"""
-команды quit, presence, authenticate принимают словарь такого вида
-{
-    "action": "presence",
-    "time": <unix timestamp>,
-    "type": "status",
-    "user": {
-        "account_name": "C0deMaver1ck",
-        "status": "Yep, I am here!"
-        }
-}
-т.е. со вложенным словарем
-
-в дальнейшем хочу оставить такой вид только для authenticate
-
-остальные команды используют такую форму
-{
-    "action": "msg",
-    "time": <unix timestamp>,
-    "to": "account_name",
-    "from": "account_name",
-    "encoding": "ascii",
-    "message": "message"
-}
-
-"""
