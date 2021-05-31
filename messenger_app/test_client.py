@@ -1,5 +1,5 @@
 import unittest
-from client import msg_user_to_user, createParser
+from client import msg_user_to_user, createParser, create_quick_chat, msg_to_chat
 import argparse
 import time
 
@@ -15,16 +15,15 @@ class TestClient(unittest.TestCase):
         self.assertEqual(type(createParser()), type(parser))
 
     def test_msg_user_to_user(self):
+        self.assertEqual(msg_user_to_user(testing=True)["message"], "Hi")
+
+    def test_create_quick_chat(self):
+        self.assertEqual(create_quick_chat(testing=True)["chat_name"], "Test_chat")
+
+    def test_msg_to_chat(self):
         self.assertEqual(
-            msg_user_to_user(testing=True),
-            {
-                "action": "msg",
-                "time": time.time(),
-                "to": "User_1",
-                "from_user": "Me",
-                "encoding": "ascii",
-                "message": "Hi",
-            },
+            msg_to_chat(chat_name="Chat_1", sock=[], testing=True)["message"],
+            "Test",
         )
 
 

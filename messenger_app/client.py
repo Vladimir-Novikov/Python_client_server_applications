@@ -53,9 +53,7 @@ def receiving_messages(sock):
 @log()
 def msg_user_to_user(testing=False):
     if testing:
-        to = "User_1"
         message = "Hi"
-        user_name = "Me"
     else:
         to = input("Кому: ")
         message = input("Сообщение: ")
@@ -71,8 +69,11 @@ def msg_user_to_user(testing=False):
 
 
 @log()
-def create_quick_chat():
-    chat_name = input("Укажите название чата: \n")
+def create_quick_chat(testing=False):
+    if testing:
+        chat_name = "Test_chat"
+    else:
+        chat_name = input("Укажите название чата: \n")
     msg = {
         "action": "quick_chat",
         "time": time.time(),
@@ -83,9 +84,12 @@ def create_quick_chat():
 
 
 @log()
-def msg_to_chat(chat_name, sock):
+def msg_to_chat(chat_name, sock, testing=False):
     while True:
-        message = input("")
+        if testing:
+            message = "Test"
+        else:
+            message = input("")
         if message == "exit":
             msg = {
                 "action": "leave",
@@ -104,8 +108,10 @@ def msg_to_chat(chat_name, sock):
             "encoding": "ascii",
             "message": message,
         }
-
-        sock.send(pickle.dumps(msg))
+        if testing:
+            return msg
+        else:
+            sock.send(pickle.dumps(msg))
 
 
 @log()
